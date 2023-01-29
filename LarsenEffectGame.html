@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html> <head>
+<title>Larsen Effect Game</title>
+<style>
+.slider {
+     float: left;
+     width: 50px;
+    padding-left: 50px;
+}
+
+.slider:nth-of-type(7) {
+     float: left;
+     width: 142px;
+}
+
+input[type="range"]{
+     display: block;
+     width: 10px;
+     height: 370px;
+     -webkit-appearance: slider-vertical;
+}
+
+input[type="button"]{
+    position: absolute;
+    left: 726px;
+    top: 100px;
+    width: 70px;
+    height: 40px;
+}
+
+.val{
+    display: block;
+}
+.points{
+    position: absolute;
+    left: 730px;
+    top: 280px;
+    width: 70px;
+    height: 40px;
+    
+}
+</style>
+
+</head>
+
+<script type="text/javascript"> 
+
+const csoundjs = "./js/csound.js";
+
+let csound = null;
+
+const code = `
+
+nchnls = 2
+0dbfs = 1
+
+seed 0
+
+; Peak/Notch IIR Biquad gain finder based on:
+; - https://www.dsprelated.com/showcode/169.php
+; - https://www.earlevel.com/main/2016/12/01/evaluating-filter-frequency-response/
+opcode gainFromFilter, k, kkkk
+  kFreq, kFc, kQ, kBoostCut xin
+   
+  kK = tan(($M_PI * kFc)/sr)
+  kV0 = 10^(kBoostCut/20)
+
+  if kV0 < 1 then
+    kV0 = 1/kV0
+  endif
+
+  ka0 = 1
+  kK2 = kK^2
+  k1Q = 1 / kQ
+  kV0kQkK = (kV0/kQ) * kK
+  k1k1QkKkK2 = 1 + (k1Q*kK) + kK2
+  k1kV0kQkkkK2 = 1 + kV0kQkK + kK2
+  if  kBoostCut > 0 then
+    kb0 = (1 + kV0kQkK + kK2) / k1k1QkKkK2;
+    kb1 = (2 * (kK2 - 1))     / k1k1QkKkK2;
+    kb2 = (1 - kV0kQkK + kK2) / k1k1QkKkK2;
+    ka1 = kb1
+    ka2 =  (1 - (k1Q*kK) + kK2) / k1k1QkKkK2;
+  else
+    kb0 = (1 + (k1Q*kK) + kK2) / k1kV0kQkkkK2;
+    kb1 = (2 * (kK2 - 1))      / k1kV0kQkkkK2;
+    kb2 = (1 - (k1Q*kK) + kK2) / k1kV0kQkkkK2;
+    ka1 = kb1
+    ka2 = (1 - kV0kQkK + kK2) / k1kV0kQkkkK2;
+  endif
+  
+  kFreqPi = kFreq / sr * 2*$M_PI
+  kCos0 = 1
+  kCos1 = cos(-kFreqPi)
+  kCos2 = cos(-2*kFreqPi)
+  kSin0 = 0
+  kSin1 = sin(-kFreqPi)
+  kSin2 = sin(-2*kFreqPi)
+  kaR = ka0*kCos0 + ka1*kCos1 + ka2*kCos2
+  kaI = ka0*kSin0 + ka1*kSin1 + ka2*kSin2
+  kbR = kb0*kCos0 + kb1*kCos1 + kb2*kCos2
+  kbI = kb0*kSin0 + kb1*kSin1 + kb2*kSin2
+  ka = sqrt(kaR^2 + kaI^2)
+  kb = sqrt(kbR^2 + kbI^2)
+
+  xout kb/ka   
+   
+endop
+
+gkPoints init 0
+gkSolved init 0
+
+instr 1
+  kReset chnget "reset"
+  if changed:k(kReset) == 1 then
+    if kReset == 1 then
+      kRand    random    7, 13
+      kRand       =      2^kRand - 28
+               event     "i", 2, 0, -1, kRand
+               chnset    kRand, "fq"
+      gkSolved    =      0
+    else
+      gkSolved    =      -1
+    endif
+  endif
+endin
+
+
+instr 2
+
+  iFq init p4
+  iArr[] init 7
+  kArr[] init 7
+
+  kFirstTouched init 0
+  kEnv init 0.00000001
+
+  iCnt = 0
+  while iCnt < 7 do
+    iArr[iCnt] = abs(iFq-125*2^iCnt)
+    iCnt +=1
+  od
+
+  iArrFq, iArrIndex minarray iArr
+  print iArrIndex
+
+  aOsc     oscils  1, iFq, 0
+
+  kTrig    metro   random:i(80, 100)
+  if kTrig == 1 then
+
+    kEq1     chnget           "eq1"
+    kEq2     chnget           "eq2"
+    kEq3     chnget           "eq3"
+    kEq4     chnget           "eq4"
+    kEq5     chnget           "eq5"
+    kEq6     chnget           "eq6"
+    kEq7     chnget           "eq7"
+
+    ;YAMAHA EMX-620
+    ;kG1     gainFromFilter   iFq, 119.63, 2.897, kEq1
+    ;kG2     gainFromFilter   iFq, 229.13, 2.638, kEq2
+    ;kG3     gainFromFilter   iFq, 492.98, 2.620, kEq3
+    ;kG4     gainFromFilter   iFq, 981.01, 2.897, kEq4
+    ;kG5     gainFromFilter   iFq, 2087.27, 2.897, kEq5
+    ;kG6     gainFromFilter   iFq, 4025.16, 2.615, kEq6
+    ;kG7     gainFromFilter   iFq, 8175.15, 2.897, kEq7
+
+    kG1     gainFromFilter   iFq, 125, 4, port:k(kEq1, 0.0001)
+    kG2     gainFromFilter   iFq, 250, 4, port:k(kEq2, 0.0001)
+    kG3     gainFromFilter   iFq, 500, 4, port:k(kEq3, 0.0001)
+    kG4     gainFromFilter   iFq, 1000, 4, port:k(kEq4, 0.0001)
+    kG5     gainFromFilter   iFq, 2000, 4, port:k(kEq5, 0.0001)
+    kG6     gainFromFilter   iFq, 4000, 4, port:k(kEq6, 0.0001)
+    kG7     gainFromFilter   iFq, 8000, 4, port:k(kEq7, 0.0001)
+  
+    kGain chnget "gain"
+    kEnv *= port:k(kGain, 0.0001) * kG1 * kG2 * kG3 * kG4 * kG5 * kG6 * kG7
+    kEnv = kEnv > 0.1 ? 0.1 : kEnv
+
+    if kFirstTouched == 0 then
+      kArr[0]      changed      kEq1
+      kArr[1]      changed      kEq2
+      kArr[2]      changed      kEq3
+      kArr[3]      changed      kEq4
+      kArr[4]      changed      kEq5
+      kArr[5]      changed      kEq6
+      kArr[6]      changed      kEq7
+      kArrGain, kArrIndex maxarray kArr
+      if kArrGain != 0 then
+        kFirstTouched = 1
+      endif
+    endif
+  
+    if kEnv < 0.000000001 then
+      kEnv = 0.00000001
+      if kGain >= 1 && gkSolved == 0 then
+        if kArrIndex == iArrIndex then
+          gkPoints += 1
+          gkSolved = 1
+          chnset gkPoints, "points"
+        else
+          gkSolved = -1
+        endif
+      endif
+    endif
+  endif
+  
+  aOsc      *=      kEnv
+
+            out     aOsc , aOsc
+        
+endin
+
+schedule(1,0,-1)
+`;
+
+let state = -1;
+
+async function start() {
+  if(csound == null) {
+    const { Csound } = await import(csoundjs);
+    csound = await Csound();
+    await csound.setOption("-odac");
+    await csound.compileOrc(code);
+    for(let i=1; i < 8; i++)
+    {
+      await csound.setControlChannel('eq' + i, 0);
+      document.getElementById('eq' + i).disabled = false;
+    }
+    document.getElementById('gain').disabled = false;
+    await csound.setControlChannel('gain', 1.057);
+    await csound.setControlChannel('reset', 1);
+    await csound.setControlChannel('fq', -1);
+    const pointsReader = () => {
+      csound.getControlChannel('points').then(v => {
+        document.querySelector('#points').innerHTML = "Points: " + "<br />" + v;
+        })
+        setTimeout(pointsReader, 1000 / 10)
+    }
+    pointsReader();
+    await csound.setControlChannel('points', 0);
+    await csound.start();
+  }
+}
+
+async function setParameter(channel, value) {
+  if (csound)
+  {
+    await csound.setControlChannel(channel, value);
+    document.getElementById(channel+"val").innerHTML = Number(value).toFixed(2);
+  }
+}
+
+async function resetButton() {
+  if (!csound)
+  {
+    start();
+    document.getElementById("reset").value = "Show me";
+    state = 0;
+   }
+   else
+   {
+     if (state == 0)
+     {
+       let val = await csound.getControlChannel('fq');
+       document.getElementById("reset").value = val.toFixed(2);
+     }
+     else
+     {
+       document.getElementById("reset").value = "Show me"
+       for(let i=1; i < 8; i++)
+       {
+         document.getElementById("eq"+i).value = 0;
+         document.getElementById("eq"+i+"val").value = "0.00";
+         await csound.setControlChannel("eq" + i, 0);
+       }
+     }
+     await csound.setControlChannel('reset', state);
+     state = 1-state;
+   }
+}
+
+</script>
+<body>
+
+<div id="sliders">
+
+<div class="slider">
+<span>125</span>    
+<input class="input" type="range" id="eq1" min="-12" max="12" value="0" step="0.001" 
+oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">  
+<output class="val" id="eq1val">0.00</output>
+</div>
+<div class="slider">    
+<span>250</span>    
+<input class="input" type="range" id="eq2" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq2val">0.00</output>
+</div>
+<div class="slider">    
+<span>500</span>    
+<input class="input" type="range" id="eq3" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq3val">0.00</output>
+</div>
+<div class="slider">    
+<span>1000</span>    
+<input class="input" type="range" id="eq4" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq4val">0.00</output>
+</div>
+<div class="slider">    
+<span>2000</span>    
+<input class="input" type="range" id="eq5" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq5val">0.00</output>
+</div>
+<div class="slider">    
+<span>4000</span>    
+<input class="input" type="range" id="eq6" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq6val">0.00</output>
+</div>
+<div class="slider">    
+<span>8000</span>    
+<input class="input" type="range" id="eq7" min="-12" max="12" value="0" step="0.001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocomplete="off">
+<output class="val" id="eq7val">0.00</output>
+</div>
+
+<datalist id="dB">
+  <option value="0" label="&nbsp;">
+</datalist>
+
+<div class="slider">    
+<span>Gain</span>    
+<input class="input" type="range" id="gain" min="0.8" max="1.2" value="1.057" step="0.0001" 
+  oninput="setParameter(id, value)" disabled orient="vertical" list="gaindB" autocomplete="off">
+<output class="val" id="gainval">1.057</output>
+
+<datalist id="gaindB">
+  <option value="1" label="&nbsp;">
+</datalist>
+
+</div>
+
+</div>
+
+<input type="button" id="reset" onclick="resetButton()" value="Start">
+<output class="points" id="points"></output>
+
+</body>
+</html>
