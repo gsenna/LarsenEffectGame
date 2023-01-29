@@ -51,6 +51,7 @@ let csound = null;
 
 const code = `
 
+ksmps = 10
 nchnls = 2
 0dbfs = 1
 
@@ -166,16 +167,16 @@ instr 2
     ;kG6     gainFromFilter   iFq, 4025.16, 2.615, kEq6
     ;kG7     gainFromFilter   iFq, 8175.15, 2.897, kEq7
 
-    kG1     gainFromFilter   iFq, 125, 4, port:k(kEq1, 0.0001)
-    kG2     gainFromFilter   iFq, 250, 4, port:k(kEq2, 0.0001)
-    kG3     gainFromFilter   iFq, 500, 4, port:k(kEq3, 0.0001)
-    kG4     gainFromFilter   iFq, 1000, 4, port:k(kEq4, 0.0001)
-    kG5     gainFromFilter   iFq, 2000, 4, port:k(kEq5, 0.0001)
-    kG6     gainFromFilter   iFq, 4000, 4, port:k(kEq6, 0.0001)
-    kG7     gainFromFilter   iFq, 8000, 4, port:k(kEq7, 0.0001)
+    kG1     gainFromFilter   iFq, 125, 4, kEq1
+    kG2     gainFromFilter   iFq, 250, 4, kEq2
+    kG3     gainFromFilter   iFq, 500, 4, kEq3
+    kG4     gainFromFilter   iFq, 1000, 4, kEq4
+    kG5     gainFromFilter   iFq, 2000, 4, kEq5
+    kG6     gainFromFilter   iFq, 4000, 4, kEq6
+    kG7     gainFromFilter   iFq, 8000, 4, kEq7
   
     kGain chnget "gain"
-    kEnv *= port:k(kGain, 0.0001) * kG1 * kG2 * kG3 * kG4 * kG5 * kG6 * kG7
+    kEnv *= kGain * kG1 * kG2 * kG3 * kG4 * kG5 * kG6 * kG7
     kEnv = kEnv > 0.1 ? 0.1 : kEnv
 
     if kFirstTouched == 0 then
@@ -206,7 +207,7 @@ instr 2
     endif
   endif
   
-  aOsc      *=      kEnv
+  aOsc      *=      port:k(kEnv, 0.01)
 
             out     aOsc , aOsc
         
