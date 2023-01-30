@@ -110,15 +110,18 @@ endop
 
 gkPoints init 0
 gkSolved init 0
+gkDeclick  init 1
 
 instr 1
   kReset chnget "reset"
   if changed:k(kReset) == 1 then
     if kReset == 1 then
-      kRand    random    7, 13
-      kRand       =      2^kRand - 28
-               event     "i", 2, 0, -1, kRand
-               chnset    kRand, "fq"
+      kBaseFq  random    80, 100
+      kOscFq   random    0,  6.33
+      kOscFq     =       kBaseFq * round:k(2 ^ kOscFq)
+      ;printk2 kOscFq
+               event     "i", 2, 0, 0.05, kBaseFq, kOscFq
+               chnset    kOscFq, "fq"
       gkSolved    =      0
     else
       gkSolved    =      -1
@@ -126,30 +129,35 @@ instr 1
   endif
 endin
 
-
 instr 2
+  gkDeclick linseg 1, p3, 0
+  if release:k() == 1 then
+    event "i", 3, 0, -1, p4, p5
+  endif
+endin
 
-  iFq init p4
-  iArr[] init 7
-  kArr[] init 7
-
-  kFirstTouched init 0
-  kEnv init 0.00000001
+instr 3
+  iFqDel          init   p4
+  iFqOsc          init   p5
+  gkDeclick       init   1
+  kFirstTouched   init   0
+  kEnv            init   0.00000001
+  iArr[]          init   7
+  kArr[]          init   7
 
   iCnt = 0
   while iCnt < 7 do
-    iArr[iCnt] = abs(iFq-125*2^iCnt)
+    iArr[iCnt] = abs(iFqOsc-125*2^iCnt)
     iCnt +=1
   od
 
   iArrFq, iArrIndex minarray iArr
-  print iArrIndex
+  ;print iArrIndex
 
-  aOsc     oscils  1, iFq, 0
+  aOsc     oscils  1, iFqOsc, 0
 
-  kTrig    metro   random:i(80, 100)
+  kTrig    metro   iFqDel
   if kTrig == 1 then
-
     kEq1     chnget           "eq1"
     kEq2     chnget           "eq2"
     kEq3     chnget           "eq3"
@@ -159,21 +167,21 @@ instr 2
     kEq7     chnget           "eq7"
 
     ;YAMAHA EMX-620
-    ;kG1     gainFromFilter   iFq, 119.63, 2.897, kEq1
-    ;kG2     gainFromFilter   iFq, 229.13, 2.638, kEq2
-    ;kG3     gainFromFilter   iFq, 492.98, 2.620, kEq3
-    ;kG4     gainFromFilter   iFq, 981.01, 2.897, kEq4
-    ;kG5     gainFromFilter   iFq, 2087.27, 2.897, kEq5
-    ;kG6     gainFromFilter   iFq, 4025.16, 2.615, kEq6
-    ;kG7     gainFromFilter   iFq, 8175.15, 2.897, kEq7
+    ;kG1     gainFromFilter   iFqOsc, 119.63, 2.897, kEq1
+    ;kG2     gainFromFilter   iFqOsc, 229.13, 2.638, kEq2
+    ;kG3     gainFromFilter   iFqOsc, 492.98, 2.620, kEq3
+    ;kG4     gainFromFilter   iFqOsc, 981.01, 2.897, kEq4
+    ;kG5     gainFromFilter   iFqOsc, 2087.27, 2.897, kEq5
+    ;kG6     gainFromFilter   iFqOsc, 4025.16, 2.615, kEq6
+    ;kG7     gainFromFilter   iFqOsc, 8175.15, 2.897, kEq7
 
-    kG1     gainFromFilter   iFq, 125, 4, kEq1
-    kG2     gainFromFilter   iFq, 250, 4, kEq2
-    kG3     gainFromFilter   iFq, 500, 4, kEq3
-    kG4     gainFromFilter   iFq, 1000, 4, kEq4
-    kG5     gainFromFilter   iFq, 2000, 4, kEq5
-    kG6     gainFromFilter   iFq, 4000, 4, kEq6
-    kG7     gainFromFilter   iFq, 8000, 4, kEq7
+    kG1     gainFromFilter   iFqOsc, 125, 4, kEq1
+    kG2     gainFromFilter   iFqOsc, 250, 4, kEq2
+    kG3     gainFromFilter   iFqOsc, 500, 4, kEq3
+    kG4     gainFromFilter   iFqOsc, 1000, 4, kEq4
+    kG5     gainFromFilter   iFqOsc, 2000, 4, kEq5
+    kG6     gainFromFilter   iFqOsc, 4000, 4, kEq6
+    kG7     gainFromFilter   iFqOsc, 8000, 4, kEq7
   
     kGain chnget "gain"
     kEnv *= kGain * kG1 * kG2 * kG3 * kG4 * kG5 * kG6 * kG7
@@ -193,7 +201,7 @@ instr 2
       endif
     endif
   
-    if kEnv < 0.000000001 then
+    if kEnv < 0.00000001 then
       kEnv = 0.00000001
       if kGain >= 1 && gkSolved == 0 then
         if kArrIndex == iArrIndex then
@@ -207,10 +215,9 @@ instr 2
     endif
   endif
   
-  aOsc      *=      port:k(kEnv, 0.01)
-
+  aOsc      *=      port:k(kEnv, 0.01) * gkDeclick
             out     aOsc , aOsc
-        
+
 endin
 
 schedule(1,0,-1)
@@ -230,14 +237,14 @@ async function start() {
       document.getElementById('eq' + i).disabled = false;
     }
     document.getElementById('gain').disabled = false;
-    await csound.setControlChannel('gain', 1.057);
+    await csound.setControlChannel('gain', 1.10);
     await csound.setControlChannel('reset', 1);
     await csound.setControlChannel('fq', -1);
     const pointsReader = () => {
       csound.getControlChannel('points').then(v => {
         document.querySelector('#points').innerHTML = "Points: " + "<br />" + v;
         })
-        setTimeout(pointsReader, 1000 / 10)
+        setTimeout(pointsReader, 100)
     }
     pointsReader();
     await csound.setControlChannel('points', 0);
@@ -336,12 +343,13 @@ oninput="setParameter(id, value)" disabled orient="vertical" list="dB" autocompl
 
 <div class="slider">    
 <span>Gain</span>    
-<input class="input" type="range" id="gain" min="0.8" max="1.2" value="1.057" step="0.0001" 
+<input class="input" type="range" id="gain" min="0.8" max="1.2" value="1.10" step="0.0001" 
   oninput="setParameter(id, value)" disabled orient="vertical" list="gaindB" autocomplete="off">
-<output class="val" id="gainval">1.057</output>
+<output class="val" id="gainval">1.10</output>
 
 <datalist id="gaindB">
   <option value="1" label="&nbsp;">
+  <option value="1.10" label="&nbsp;">
 </datalist>
 
 </div>
